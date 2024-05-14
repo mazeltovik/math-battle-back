@@ -17,17 +17,22 @@ import { from, Observable } from 'rxjs';
 export class EventsGateway {
   @WebSocketServer()
   server: Server;
+  
 
-  @SubscribeMessage('message')
+  @SubscribeMessage('connect')
   async connect(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    console.log(client.rooms);
-    this.server.emit('message', 'a user connected');
+    console.log('a user connected')
+    this.server.emit('connection', 'a user connected');
   }
   @SubscribeMessage('showRooms')
-    handleEvent(@MessageBody() data: string, @ConnectedSocket() client: Socket): WsResponse<unknown>  {
-      const event = 'showRooms';
-      console.dir(this.server.eventNames());
-      return { event, data:client.rooms };
+  handleEvent(
+    @MessageBody() data: string,
+    @ConnectedSocket() client: Socket,
+  ): WsResponse<unknown> {
+    const event = 'showRooms';
+    console.log(data);
+    console.dir(client.id);
+    return { event, data };
   }
   // @SubscribeMessage('showRooms')
   // async showRooms(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
