@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 // import * as bcrypt from 'bcryptjs';
-
+import { db } from 'src/db/db';
 type Body = {
   name: string;
   login: string;
@@ -22,14 +22,20 @@ type User = {
   password: string;
 };
 
+type Room = {
+  name: string;
+  host: User;
+  users: User[];
+};
+
 @Injectable()
 export class UserService {
-  users: User[] = [];
   constructor() {}
   async auth(body: Body) {
     const userId = uuidv4();
     const newUser = Object.assign(body, { userId });
-    this.users.push(newUser);
+    db.users.push(newUser);
+    console.log(db.users);
     return newUser;
   }
 }

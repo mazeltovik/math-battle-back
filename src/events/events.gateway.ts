@@ -6,8 +6,11 @@ import {
   WebSocketServer,
   WsResponse,
 } from '@nestjs/websockets';
+import { ModuleRef } from '@nestjs/core';
 import { Server, Socket } from 'socket.io';
 import { from, Observable } from 'rxjs';
+import { UserService } from 'src/user/user.service';
+import { db } from 'src/db/db';
 
 @WebSocketGateway({
   cors: {
@@ -17,11 +20,14 @@ import { from, Observable } from 'rxjs';
 export class EventsGateway {
   @WebSocketServer()
   server: Server;
-  
-
+  private userService: UserService;
+  constructor(private moduleRef: ModuleRef) {}
+  onModuleInit() {
+    this.userService = this.moduleRef.get(UserService);
+  }
   @SubscribeMessage('connect')
   async connect(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    console.log('a user connected')
+    console.log('a user connected');
     this.server.emit('connection', 'a user connected');
   }
   @SubscribeMessage('showRooms')
@@ -30,8 +36,7 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
   ): WsResponse<unknown> {
     const event = 'showRooms';
-    console.log(data);
-    console.dir(client.id);
+    console.log(db.users);
     return { event, data };
   }
   // @SubscribeMessage('showRooms')
