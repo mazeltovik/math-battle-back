@@ -9,9 +9,12 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { Server, Socket } from 'socket.io';
 import { from, Observable } from 'rxjs';
+import { v4 as uuidv4 } from 'uuid';
 import { UserService } from 'src/user/user.service';
+import { RoomsService } from 'src/rooms/rooms.service';
 import { db } from 'src/db/db';
-
+import { Room } from 'src/db/modelTypes';
+import { Body } from '@nestjs/common';
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -21,24 +24,50 @@ export class EventsGateway {
   @WebSocketServer()
   server: Server;
   private userService: UserService;
+  private roomsService: RoomsService;
   constructor(private moduleRef: ModuleRef) {}
   onModuleInit() {
     this.userService = this.moduleRef.get(UserService);
+    this.roomsService = this.moduleRef.get(RoomsService);
   }
   @SubscribeMessage('connect')
   async connect(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
     console.log('a user connected');
     this.server.emit('connection', 'a user connected');
   }
-  @SubscribeMessage('showRooms')
-  handleEvent(
-    @MessageBody() data: string,
+  @SubscribeMessage('createRoom')
+  async createRoom(
+    @MessageBody() body: Omit<Room, 'host' | 'users'> & { userId: string },
     @ConnectedSocket() client: Socket,
-  ): WsResponse<unknown> {
-    const event = 'showRooms';
-    console.log(db.users);
-    return { event, data };
+  ): Promise<WsResponse<unknown>> {
+    const event = 'createRoom';
+    const roomId = uuidv4();
+    const didCreate = await this.roomsService.createRoom(body, roomId);
+    if (didCreate) {
+      client.join(roomId);
+      return {
+        event,
+        data: {
+          didCreate,
+          roomId,
+          name: body.name,
+          difficulty: body.difficulty,
+          isAllowedChat: body.isAllowedChat,
+          time: body.time,
+        },
+      };
+    }
+    return { event, data: { didCreate } };
   }
+  // @SubscribeMessage('showRooms')
+  // handleEvent(
+  //   @MessageBody() data: string,
+  //   @ConnectedSocket() client: Socket,
+  // ): WsResponse<unknown> {
+  //   const event = 'showRooms';
+  //   console.log(db.users);
+  //   return { event, data };
+  // }
   // @SubscribeMessage('showRooms')
   // async showRooms(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
   //   const rooms = this.server.of("/").adapter.rooms;
