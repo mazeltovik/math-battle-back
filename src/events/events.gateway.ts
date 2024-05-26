@@ -42,13 +42,12 @@ export class EventsGateway {
   ): Promise<WsResponse<unknown>> {
     const event = 'createRoom';
     const roomId = uuidv4();
-    const didCreate = await this.roomsService.createRoom(body, roomId);
-    if (didCreate) {
+    try{
+      this.roomsService.createRoom(body, roomId);
       client.join(roomId);
       return {
         event,
         data: {
-          didCreate,
           roomId,
           name: body.name,
           difficulty: body.difficulty,
@@ -56,8 +55,25 @@ export class EventsGateway {
           time: body.time,
         },
       };
+    } catch(err){
+      return {event, data:{err:err.message}};
     }
-    return { event, data: { didCreate } };
+    // const didCreate = await this.roomsService.createRoom(body, roomId);
+    // if (didCreate) {
+    //   client.join(roomId);
+    //   return {
+    //     event,
+    //     data: {
+    //       didCreate,
+    //       roomId,
+    //       name: body.name,
+    //       difficulty: body.difficulty,
+    //       isAllowedChat: body.isAllowedChat,
+    //       time: body.time,
+    //     },
+    //   };
+    // }
+    // return { event, data: { didCreate } };
   }
   // @SubscribeMessage('showRooms')
   // handleEvent(
