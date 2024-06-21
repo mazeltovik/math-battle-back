@@ -33,47 +33,99 @@ export class EventsGateway {
   @SubscribeMessage('connect')
   async connect(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
     console.log('a user connected');
-    this.server.emit('connection', 'a user connected');
+    client.emit('connection', 'a user connected');
   }
-  @SubscribeMessage('createRoom')
+  @SubscribeMessage('CREATE_ROOM')
   async createRoom(
     @MessageBody() body: Omit<Room, 'host' | 'users'> & { userId: string },
     @ConnectedSocket() client: Socket,
   ): Promise<WsResponse<unknown>> {
-    const event = 'createRoom';
+    const event = 'CREATE_ROOM';
     const roomId = uuidv4();
-    try{
+    try {
       this.roomsService.createRoom(body, roomId);
+      const room = {
+        roomId,
+        name: body.name,
+        difficulty: body.difficulty,
+        isAllowedChat: body.isAllowedChat,
+        time: body.time,
+        connectedUsers: 1,
+      };
       client.join(roomId);
+      console.log(this.server.of('/').adapter.rooms);
+      this.server.emit('ADD_CREATED_ROOM', room);
       return {
         event,
-        data: {
-          roomId,
-          name: body.name,
-          difficulty: body.difficulty,
-          isAllowedChat: body.isAllowedChat,
-          time: body.time,
-        },
+        data: [room],
       };
-    } catch(err){
-      return {event, data:{err:err.message}};
+    } catch (err) {
+      return { event, data: { err: err.message } };
     }
-    // const didCreate = await this.roomsService.createRoom(body, roomId);
-    // if (didCreate) {
-    //   client.join(roomId);
-    //   return {
-    //     event,
-    //     data: {
-    //       didCreate,
-    //       roomId,
-    //       name: body.name,
-    //       difficulty: body.difficulty,
-    //       isAllowedChat: body.isAllowedChat,
-    //       time: body.time,
-    //     },
-    //   };
-    // }
-    // return { event, data: { didCreate } };
+  }
+  @SubscribeMessage('GET_ROOM_BY_USER_ID')
+  async getRoomByUserId(
+    @MessageBody() body: { userId: string },
+    @ConnectedSocket() client: Socket,
+  ): Promise<WsResponse<unknown>> {
+    const { userId } = body;
+    const event = 'GET_ROOM_BY_USER_ID';
+    // this.server.emit('upgrade', 'Hello');
+    try {
+      const room = this.roomsService.getRoomByUserId(userId);
+      return { event, data: [room] };
+    } catch (err) {
+      return { event, data: { warning: err.message } };
+    }
+  }
+  @SubscribeMessage('GET_ROOMS')
+  async getRooms(@MessageBody() body: { userId: string }) {
+    const { userId } = body;
+    const event = 'GET_ROOMS';
+    const rooms = this.roomsService.getRooms(userId);
+    return { event, data: rooms };
+    // this.server.emit(event, rooms);
+  }
+
+  @SubscribeMessage('REQUEST_FOR_CONNECTING')
+  async regForConnecting(
+    @MessageBody() body: { userId: string; roomId: string },
+  ) {
+    const event = 'REQUEST_FOR_CONNECTING';
+    const { userId, roomId } = body;
+    try {
+      const { owner, amoutOfAwaiters } = this.roomsService.setAwaiter(
+        userId,
+        roomId,
+      );
+      this.server.to(owner).emit(event, amoutOfAwaiters);
+      const awaiters = this.roomsService.getAwaiters(owner);
+      this.server.to(owner).emit('GET_AWAITERS', awaiters);
+    } catch (err) {
+      return { event, data: { warning: err.message } };
+    }
+  }
+  @SubscribeMessage('LEAVE_AWAITING_ROOM')
+  async leaveTargetRoom(
+    @MessageBody() body: { userId: string; targetRoom: string },
+  ) {
+    const { userId, targetRoom } = body;
+    const event = 'LEAVE_AWAITING_ROOM';
+    const { owner, amountOfAwaiter } = this.roomsService.removeAwaiter(
+      userId,
+      targetRoom,
+    );
+    this.server.to(owner).emit(event, amountOfAwaiter);
+    const awaiters = this.roomsService.getAwaiters(owner);
+    this.server.to(owner).emit('GET_AWAITERS', awaiters);
+  }
+
+  @SubscribeMessage('GET_AWAITERS')
+  async getAwaiters(@MessageBody() body: { userId: string }) {
+    const { userId } = body;
+    const event = 'GET_AWAITERS';
+    const awaiters = this.roomsService.getAwaiters(userId);
+    return { event, data: awaiters };
   }
   // @SubscribeMessage('showRooms')
   // handleEvent(

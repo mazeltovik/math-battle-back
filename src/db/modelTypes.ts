@@ -12,6 +12,8 @@ export type Room = {
   time: string;
   difficulty: number;
   isAllowedChat: boolean;
+  connectedUsers: number;
   host: User;
   users: User[];
+  awaiters: User[];
 };
