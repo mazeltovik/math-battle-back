@@ -127,6 +127,14 @@ export class EventsGateway {
     const awaiters = this.roomsService.getAwaiters(userId);
     return { event, data: awaiters };
   }
+  @SubscribeMessage('APPROVE_CONNECTION')
+  async approveConnection(@MessageBody() body: { host: string; foe: string }) {
+    const event = 'APPROVE_CONNECTION';
+    const { host, foe } = body;
+    const { foeSocket, roomId } = this.roomsService.setFoe(host, foe);
+    this.server.to(foeSocket).emit(event, { status: true, roomId });
+    return { event, data: { status: true, roomId } };
+  }
   // @SubscribeMessage('showRooms')
   // handleEvent(
   //   @MessageBody() data: string,

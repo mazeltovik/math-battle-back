@@ -114,4 +114,14 @@ export class RoomsService {
       });
     } else return [];
   }
+  setFoe(host: string, foe: string) {
+    const room = db.rooms.find((room) => room.host.userId == host);
+    if (room) {
+      const foeUser = db.users.find((user) => user.userId == foe);
+      if (foeUser) {
+        room.users.push(foeUser);
+        return { foeSocket: foeUser.socketId, roomId: room.roomId };
+      }
+    }
+  }
 }
