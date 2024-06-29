@@ -53,7 +53,8 @@ export class EventsGateway {
         connectedUsers: 1,
       };
       client.join(roomId);
-      console.log(this.server.of('/').adapter.rooms);
+      // console.log(this.server.of('/').adapter.sockets('23'));
+      // this.server.sockets.connected[socketID].join(roomName);
       this.server.emit('ADD_CREATED_ROOM', room);
       return {
         event,
@@ -134,6 +135,29 @@ export class EventsGateway {
     const { foeSocket, roomId } = this.roomsService.setFoe(host, foe);
     this.server.to(foeSocket).emit(event, { status: true, roomId });
     return { event, data: { status: true, roomId } };
+  }
+  @SubscribeMessage('REMOVE_AWAITER')
+  async removeAwaiter(@MessageBody() body: { host: string; foe: string }) {
+    const event = 'REMOVE_AWAITER';
+    const { host, foe } = body;
+    const { amountOfAwaiters } = this.roomsService.removeAwaiterFromHost(
+      host,
+      foe,
+    );
+    return { event, data: { amountOfAwaiters } };
+  }
+  @SubscribeMessage('UPDATE_CONNECTED_USERS')
+  async updateConnectedUsers(
+    @MessageBody() body: { host: string; updateUsers: number },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const event = 'UPDATE_CONNECTED_USERS';
+    const { host, updateUsers } = body;
+    const { roomId, connectedUsers } = this.roomsService.updateConnectedUsers(
+      host,
+      updateUsers,
+    );
+    client.broadcast.emit(event, { roomId, connectedUsers });
   }
   // @SubscribeMessage('showRooms')
   // handleEvent(

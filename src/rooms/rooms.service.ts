@@ -124,4 +124,23 @@ export class RoomsService {
       }
     }
   }
+  removeAwaiterFromHost(host: string, foe: string) {
+    const roomOwner = db.rooms.find((room) => room.host.userId == host);
+    if (roomOwner) {
+      roomOwner.awaiters = roomOwner.awaiters.filter(
+        (awaiter) => awaiter.userId !== foe,
+      );
+    }
+    return {
+      amountOfAwaiters: roomOwner.awaiters.length,
+    };
+  }
+  updateConnectedUsers(host: string, updateUsers: number) {
+    const roomOwner = db.rooms.find((room) => room.host.userId == host);
+    if (roomOwner) {
+      roomOwner.connectedUsers = updateUsers;
+    }
+    const { roomId, connectedUsers } = roomOwner;
+    return { roomId, connectedUsers };
+  }
 }
