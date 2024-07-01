@@ -1,29 +1,34 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { db } from 'src/db/db';
 import { Room } from 'src/db/modelTypes';
+import { ReceiveRoomData } from 'src/events/eventsDTO';
 
 @Injectable()
 export class RoomsService {
   constructor() {}
-  createRoom(
-    body: Omit<Room, 'host' | 'users'> & { userId: string },
-    roomId: any,
-  ) {
+  createRoom(body: ReceiveRoomData, roomId: string) {
     const { isExist, err, user } = this.isExistUser(body.userId);
     if (isExist) {
       const { isCreate, err } = this.didUserCreateRoom(body.userId);
       if (!isCreate) {
-        db.rooms.push({
+        const { name, connectedUsers, difficulty, isAllowedChat, time } = body;
+        const room = {
           roomId,
-          name: body.name,
-          time: body.time,
-          difficulty: body.difficulty,
-          isAllowedChat: body.isAllowedChat,
-          connectedUsers: body.connectedUsers,
-          host: user,
-          users: [user],
-          awaiters: [],
-        });
+          name,
+          connectedUsers,
+          difficulty,
+          isAllowedChat,
+          time,
+        };
+        db.rooms.push(
+          Object.assign({}, room, {
+            host: user,
+            foe: {},
+            awaiters: [],
+            users: [user],
+          }),
+        );
+        return room;
       } else {
         throw new Error(err);
       }
@@ -47,22 +52,31 @@ export class RoomsService {
   }
 
   getRooms(userId: string) {
-    return db.rooms.filter((room) => room.host.userId != userId);
+    return db.rooms
+      .filter((room) => room.host.userId != userId)
+      .map((room) => {
+        const {
+          roomId,
+          name,
+          difficulty,
+          time,
+          isAllowedChat,
+          connectedUsers,
+        } = room;
+        const existRoom = {
+          roomId,
+          name,
+          difficulty,
+          time,
+          isAllowedChat,
+          connectedUsers,
+        };
+        return existRoom;
+      });
   }
-  getRoomByUserId(id: string) {
-    const room = db.rooms.find((room) => room.host.userId == id);
-    if (room) {
-      const { roomId, name, difficulty, time, isAllowedChat, connectedUsers } =
-        room;
-      return {
-        roomId,
-        name,
-        difficulty,
-        time,
-        isAllowedChat,
-        connectedUsers,
-      };
-    } else throw new Error('You havent create any room yet.');
+  getRoomByUserId(userId: string) {
+    const room = db.rooms.find((room) => room.host.userId == userId);
+    return room ? room : undefined;
   }
   getRoomByRoomId(roomId: string) {
     const room = db.rooms.find((room) => room.roomId == roomId);
@@ -84,7 +98,8 @@ export class RoomsService {
         room.awaiters.push(awaiter);
         return {
           owner: room.host.socketId,
-          amoutOfAwaiters: room.awaiters.length,
+          amountOfAwaiters: room.awaiters.length,
+          ownerId: room.host.userId,
         };
       } else {
         throw new Error(err);
@@ -102,11 +117,12 @@ export class RoomsService {
     }
     return {
       owner: roomOwner.host.socketId,
-      amountOfAwaiter: roomOwner.awaiters.length,
+      amountOfAwaiters: roomOwner.awaiters.length,
+      ownerId: roomOwner.host.userId,
     };
   }
   getAwaiters(userId: string) {
-    const roomOwner = db.rooms.find((room) => room.host.socketId == userId);
+    const roomOwner = db.rooms.find((room) => room.host.userId == userId);
     if (roomOwner) {
       return roomOwner.awaiters.map((user) => {
         const { userId, name } = user;
@@ -119,6 +135,7 @@ export class RoomsService {
     if (room) {
       const foeUser = db.users.find((user) => user.userId == foe);
       if (foeUser) {
+        room.foe = foeUser;
         room.users.push(foeUser);
         return { foeSocket: foeUser.socketId, roomId: room.roomId };
       }

@@ -15,6 +15,14 @@ import { RoomsService } from 'src/rooms/rooms.service';
 import { db } from 'src/db/db';
 import { Room } from 'src/db/modelTypes';
 import { Body } from '@nestjs/common';
+import {
+  ReceiveRoomData,
+  RecieveApprovedConnection,
+  RecieveUpdateConnectedUsers,
+  ServerToClientEvents,
+  ClientToServerEvents,
+} from './eventsDTO';
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -22,7 +30,7 @@ import { Body } from '@nestjs/common';
 })
 export class EventsGateway {
   @WebSocketServer()
-  server: Server;
+  server: Server<ClientToServerEvents, ServerToClientEvents>;
   private userService: UserService;
   private roomsService: RoomsService;
   constructor(private moduleRef: ModuleRef) {}
@@ -37,21 +45,13 @@ export class EventsGateway {
   }
   @SubscribeMessage('CREATE_ROOM')
   async createRoom(
-    @MessageBody() body: Omit<Room, 'host' | 'users'> & { userId: string },
+    @MessageBody() body: ReceiveRoomData,
     @ConnectedSocket() client: Socket,
   ): Promise<WsResponse<unknown>> {
     const event = 'CREATE_ROOM';
-    const roomId = uuidv4();
+    const roomId = uuidv4() as string;
     try {
-      this.roomsService.createRoom(body, roomId);
-      const room = {
-        roomId,
-        name: body.name,
-        difficulty: body.difficulty,
-        isAllowedChat: body.isAllowedChat,
-        time: body.time,
-        connectedUsers: 1,
-      };
+      const room = this.roomsService.createRoom(body, roomId);
       client.join(roomId);
       // console.log(this.server.of('/').adapter.sockets('23'));
       // this.server.sockets.connected[socketID].join(roomName);
@@ -67,16 +67,24 @@ export class EventsGateway {
   @SubscribeMessage('GET_ROOM_BY_USER_ID')
   async getRoomByUserId(
     @MessageBody() body: { userId: string },
-    @ConnectedSocket() client: Socket,
   ): Promise<WsResponse<unknown>> {
     const { userId } = body;
     const event = 'GET_ROOM_BY_USER_ID';
-    // this.server.emit('upgrade', 'Hello');
-    try {
-      const room = this.roomsService.getRoomByUserId(userId);
-      return { event, data: [room] };
-    } catch (err) {
-      return { event, data: { warning: err.message } };
+    const room = this.roomsService.getRoomByUserId(userId);
+    if (room) {
+      const { roomId, name, difficulty, time, isAllowedChat, connectedUsers } =
+        room;
+      const existRoom = {
+        roomId,
+        name,
+        difficulty,
+        time,
+        isAllowedChat,
+        connectedUsers,
+      };
+      return { event, data: [existRoom] };
+    } else {
+      return { event, data: { warning: 'You havent create any room yet.' } };
     }
   }
   @SubscribeMessage('GET_ROOMS')
@@ -95,12 +103,12 @@ export class EventsGateway {
     const event = 'REQUEST_FOR_CONNECTING';
     const { userId, roomId } = body;
     try {
-      const { owner, amoutOfAwaiters } = this.roomsService.setAwaiter(
+      const { owner, amountOfAwaiters, ownerId } = this.roomsService.setAwaiter(
         userId,
         roomId,
       );
-      this.server.to(owner).emit(event, amoutOfAwaiters);
-      const awaiters = this.roomsService.getAwaiters(owner);
+      this.server.to(owner).emit(event, { amountOfAwaiters });
+      const awaiters = this.roomsService.getAwaiters(ownerId);
       this.server.to(owner).emit('GET_AWAITERS', awaiters);
     } catch (err) {
       return { event, data: { warning: err.message } };
@@ -112,12 +120,10 @@ export class EventsGateway {
   ) {
     const { userId, targetRoom } = body;
     const event = 'LEAVE_AWAITING_ROOM';
-    const { owner, amountOfAwaiter } = this.roomsService.removeAwaiter(
-      userId,
-      targetRoom,
-    );
-    this.server.to(owner).emit(event, amountOfAwaiter);
-    const awaiters = this.roomsService.getAwaiters(owner);
+    const { owner, amountOfAwaiters, ownerId } =
+      this.roomsService.removeAwaiter(userId, targetRoom);
+    this.server.to(owner).emit(event, { amountOfAwaiters });
+    const awaiters = this.roomsService.getAwaiters(ownerId);
     this.server.to(owner).emit('GET_AWAITERS', awaiters);
   }
 
@@ -129,7 +135,7 @@ export class EventsGateway {
     return { event, data: awaiters };
   }
   @SubscribeMessage('APPROVE_CONNECTION')
-  async approveConnection(@MessageBody() body: { host: string; foe: string }) {
+  async approveConnection(@MessageBody() body: RecieveApprovedConnection) {
     const event = 'APPROVE_CONNECTION';
     const { host, foe } = body;
     const { foeSocket, roomId } = this.roomsService.setFoe(host, foe);
@@ -137,7 +143,7 @@ export class EventsGateway {
     return { event, data: { status: true, roomId } };
   }
   @SubscribeMessage('REMOVE_AWAITER')
-  async removeAwaiter(@MessageBody() body: { host: string; foe: string }) {
+  async removeAwaiter(@MessageBody() body: RecieveApprovedConnection) {
     const event = 'REMOVE_AWAITER';
     const { host, foe } = body;
     const { amountOfAwaiters } = this.roomsService.removeAwaiterFromHost(
@@ -148,7 +154,7 @@ export class EventsGateway {
   }
   @SubscribeMessage('UPDATE_CONNECTED_USERS')
   async updateConnectedUsers(
-    @MessageBody() body: { host: string; updateUsers: number },
+    @MessageBody() body: RecieveUpdateConnectedUsers,
     @ConnectedSocket() client: Socket,
   ) {
     const event = 'UPDATE_CONNECTED_USERS';
