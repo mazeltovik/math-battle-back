@@ -21,6 +21,7 @@ import {
   RecieveUpdateConnectedUsers,
   ServerToClientEvents,
   ClientToServerEvents,
+  ReciveSendMessage,
 } from './eventsDTO';
 
 @WebSocketGateway({
@@ -52,7 +53,7 @@ export class EventsGateway {
     const roomId = uuidv4() as string;
     try {
       const room = this.roomsService.createRoom(body, roomId);
-      client.join(roomId);
+      // client.join(roomId);
       // console.log(this.server.of('/').adapter.sockets('23'));
       // this.server.sockets.connected[socketID].join(roomName);
       this.server.emit('ADD_CREATED_ROOM', room);
@@ -138,8 +139,10 @@ export class EventsGateway {
   async approveConnection(@MessageBody() body: RecieveApprovedConnection) {
     const event = 'APPROVE_CONNECTION';
     const { host, foe } = body;
-    const { foeSocket, roomId } = this.roomsService.setFoe(host, foe);
+    const { foeSocket, roomId, hostId } = this.roomsService.setFoe(host, foe);
     this.server.to(foeSocket).emit(event, { status: true, roomId });
+    this.server.in(foeSocket).socketsJoin(hostId);
+    console.log(this.server.of('/').adapter.rooms);
     return { event, data: { status: true, roomId } };
   }
   @SubscribeMessage('REMOVE_AWAITER')
@@ -164,6 +167,18 @@ export class EventsGateway {
       updateUsers,
     );
     client.broadcast.emit(event, { roomId, connectedUsers });
+  }
+  @SubscribeMessage('SEND_MESSAGE')
+  async getMessage(
+    @MessageBody() body: ReciveSendMessage,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const event = 'SEND_MESSAGE';
+    const messageId = uuidv4() as string;
+    const { socketId, message, sender } = this.roomsService.getMessage(body);
+    this.server
+      .to(socketId)
+      .emit(event, { message, socketId, messageId, sender });
   }
   // @SubscribeMessage('showRooms')
   // handleEvent(

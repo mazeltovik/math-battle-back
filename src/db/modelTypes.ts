@@ -14,7 +14,6 @@ export type Room = {
   isAllowedChat: boolean;
   connectedUsers: number;
   host: User;
-  foe: Record<PropertyKey, string>;
   users: User[];
   awaiters: User[];
 };

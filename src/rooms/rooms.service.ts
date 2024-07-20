@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { db } from 'src/db/db';
 import { Room } from 'src/db/modelTypes';
-import { ReceiveRoomData } from 'src/events/eventsDTO';
+import { ReceiveRoomData, ReciveSendMessage } from 'src/events/eventsDTO';
 
 @Injectable()
 export class RoomsService {
@@ -135,9 +135,12 @@ export class RoomsService {
     if (room) {
       const foeUser = db.users.find((user) => user.userId == foe);
       if (foeUser) {
-        room.foe = foeUser;
         room.users.push(foeUser);
-        return { foeSocket: foeUser.socketId, roomId: room.roomId };
+        return {
+          foeSocket: foeUser.socketId,
+          roomId: room.roomId,
+          hostId: room.host.socketId,
+        };
       }
     }
   }
@@ -159,5 +162,24 @@ export class RoomsService {
     }
     const { roomId, connectedUsers } = roomOwner;
     return { roomId, connectedUsers };
+  }
+  getMessage(body: ReciveSendMessage) {
+    const room = db.rooms.find((room) => room.roomId == body.roomId);
+    if (room) {
+      if (room.host.socketId == body.socketId) {
+        return {
+          socketId: room.host.socketId,
+          message: body.message,
+          sender: room.host.socketId,
+        };
+      } else {
+        const foe = room.users.find((user) => user.socketId == body.socketId);
+        return {
+          socketId: room.host.socketId,
+          message: body.message,
+          sender: foe.socketId,
+        };
+      }
+    }
   }
 }
